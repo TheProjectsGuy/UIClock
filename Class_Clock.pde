@@ -77,7 +77,8 @@ class Clock {
   int type = 1;
   /*
    *1 - Analog clock
-   *2 - Analog Arc clock (Under planning phase)
+   *2 - Analog Arc clock 
+   *3 - Digital Clock
    */
 
   int level = 1;  //This decides the features
@@ -90,7 +91,10 @@ class Clock {
    *5 is to include all the 60 divisions on the dial (0-60)
    Type : Analog Arc
    *1 for just the basic arcs
-   *2 to show numbers just after arcs (trailing numbers)
+   *2 to show separators (and upscaling)
+   *3 to show numbers just after arcs (trailing numbers along with a following dense arc)
+   Type : Digital clock
+   *1 for standard Digital clock
    */
   void drawClock() {
     timeOnClock.updateTime();
@@ -101,14 +105,51 @@ class Clock {
     case 2:
       drawClock_Analog_Arc();
       break;
+    case 3:
+      drawClock_Digital();
+      break;
     default:
       println("ILLEGAL Type of CLOCK");
     }
   }
 
+  //Digital segment : A simple digital output
+  void drawClock_Digital() {
+    level = constrain(level, 0, 2);
+    CGCircle dialBackground = new CGCircle(dial);
+    dialBackground.stroke_weight = 1;
+    dialBackground.backgroundColor = dial.backgroundColor;
+    dialBackground.drawCircle();  //To make the dial without losing data, so we make the background of the dial first and then put the frame
+    if (level >= 1) {
+      writeDigitsInsideDial();
+    }
+    dial.backgroundColor = -1;
+    dial.drawCircle();
+    dial.backgroundColor = dialBackground.backgroundColor;
+  }
+  void writeDigitsInsideDial() {
+    textAlign(CENTER, CENTER);
+    fill((level >= 2) ? color_hour : color_text);
+    textSize(dial.radius * 0.40);
+    text((hour() > 9) ? str(hour()) : ("0" + str(hour())), dial.center.x - dial.radius * 0.65, dial.center.y);
+    fill((level >= 2) ? color_minute: color_text);
+    textSize(dial.radius * 0.40);
+    text((minute() > 9) ? str(minute()) : ("0" + str(minute())), dial.center.x, dial.center.y);
+    fill((level >= 2) ? color_second : color_text);
+    textSize(dial.radius * 0.40);
+    text((second() > 9) ? str(second()) : ("0" + str(second())), dial.center.x + dial.radius * 0.65, dial.center.y);
+    if (level >= 2 && second() % 2 == 0) {
+      fill(color_text);
+      textAlign(CENTER, CENTER);
+      textSize(dial.radius * 0.40);
+      text(":", dial.center.x + dial.radius * 0.32, dial.center.y);
+      text(":", dial.center.x - dial.radius * 0.32, dial.center.y);
+    }
+  }
+
   //Analog Arc segment : An analog type clock blended into arcs
   void drawClock_Analog_Arc() {
-    level = constrain(level, 0, 2);  //constrain the level in the bounds
+    level = constrain(level, 0, 3);  //constrain the level in the bounds
     CGCircle dialBackground = new CGCircle(dial);
     dialBackground.stroke_weight = 1;
     dialBackground.backgroundColor = dial.backgroundColor;
@@ -117,24 +158,27 @@ class Clock {
     //Create the arcs
     CGArc seconds_Arc = new CGArc(dial.center, dial.radius * 0.85 * 2, 0, map(second(), 0, 60, 0, 2*PI));
     seconds_Arc.stroke_weight = stroke_weights;
-    CGArc minutes_Arc = new CGArc(dial.center, dial.radius * 0.85 * 2 * 2.0/3.0, 0, map(minute() + (second() / 60.0), 0, 60, 0, 2*PI));
+    CGArc minutes_Arc = new CGArc(dial.center, dial.radius * 0.85 * 2 * 2.0/3.0, 0, map(minute() + ((level >= 2) ? (second() / 60.0) : 0), 0, 60, 0, 2*PI));
     minutes_Arc.stroke_weight = stroke_weights;
-    CGArc hours_Arc = new CGArc(dial.center, dial.radius * 0.85 * 2 * 1/3.0, 0, map((hour() % 12) + (minute()/60) + second()/(60*60), 0, 12, 0, 2*PI));
+    CGArc hours_Arc = new CGArc(dial.center, dial.radius * 0.85 * 2 * 1/3.0, 0, map((hour() % 12) + ((level >= 2) ? ((minute()/60) + second()/(60*60)) : 0), 0, 12, 0, 2*PI));
     hours_Arc.stroke_weight = stroke_weights;
     analog_Arc_makeArcs(seconds_Arc, minutes_Arc, hours_Arc);  //Make the arcs
     dial.backgroundColor = dialBackground.backgroundColor;
+    if (level >= 3) {
+      analog_Arc_writeTimeOnArcs( seconds_Arc, minutes_Arc, hours_Arc, stroke_weights);
+    }
+  }
 
+  void analog_Arc_writeTimeOnArcs(CGArc seconds_Arc, CGArc minutes_Arc, CGArc hours_Arc, float stroke_weights) {
     textSize(stroke_weights * 0.55);
     fill(color_text);
-    textAlign(CENTER,CENTER);
+    textAlign(CENTER, CENTER);
     text(str(timeOnClock.seconds), dial.center.x + seconds_Arc.radius * sin(seconds_Arc.end_angle), dial.center.y - seconds_Arc.radius * cos(seconds_Arc.end_angle));
     text(str(timeOnClock.minutes), dial.center.x + minutes_Arc.radius * sin(minutes_Arc.end_angle), dial.center.y - minutes_Arc.radius * cos(minutes_Arc.end_angle));
     text(str(timeOnClock.hours % 12), dial.center.x + hours_Arc.radius * sin(hours_Arc.end_angle), dial.center.y - hours_Arc.radius * cos(hours_Arc.end_angle));
   }
-
   void analog_Arc_makeArcs(CGArc seconds_Arc, CGArc minutes_Arc, CGArc hours_Arc) {  //To make the arcs on the screen based on level
-    if (level >= 2) {
-      //Make white arcs
+    if (level >= 3) { //Make white arcs
       CGArc c = new CGArc();
       c = seconds_Arc;
       c.strokeColor = color(255);
@@ -149,7 +193,7 @@ class Clock {
       color_minute = color(red(color_minute), green(color_minute), blue(color_minute), 127);
       color_hour = color(red(color_hour), green(color_hour), blue(color_hour), 127);
     }
-    if (level >= 1) {
+    if (level >= 1) {  //Make arcs (with color)
       if (level == 1) {
         color_second = color(red(color_second), green(color_second), blue(color_second), 255);
         color_minute = color(red(color_minute), green(color_minute), blue(color_minute), 255);
@@ -162,8 +206,39 @@ class Clock {
       minutes_Arc.drawArc();
       hours_Arc.drawArc();
     }
+    if (level == 2) {  //To make the slit separators (For level 2 only, because we have number followers in level 3)
+      for (int i = 1; i <= 3; i++) {
+        for (float angle = 0, sno = 0;; sno++, angle += 2*PI/60.0) {
+          if ( (i == 1 && sno > timeOnClock.seconds) || (i == 2 && sno > timeOnClock.minutes) || (i == 3 && sno > timeOnClock.hours * 5) ) {
+            break;
+          }
+          CGPoint startingPoint, endingPoint;  //starting and ending points of the dashed lines
+          CGLine dashLine;
+          if (i == 1) {  //seconds arc dasher
+            startingPoint = new CGPoint(dial.center, seconds_Arc.radius - seconds_Arc.stroke_weight * 0.5 * 0.50, angle);
+          } else if (i==2) {
+            startingPoint = new CGPoint(dial.center, minutes_Arc.radius - minutes_Arc.stroke_weight * 0.5 * 0.50, angle);
+          } else {  //i == 3, hours dashes
+            if (sno % 5 != 0) continue;
+            startingPoint = new CGPoint(dial.center, hours_Arc.radius - hours_Arc.stroke_weight * 0.5 * 0.50, angle);
+          }
+          endingPoint = new CGPoint(startingPoint, seconds_Arc.stroke_weight * 0.5 , angle);
+          dashLine = new CGLine(startingPoint, endingPoint);
+          dashLine.stroke_weight = ((sno % 5 ==0) ? seconds_Arc.stroke_weight/10.0 : ((i != 3) ? seconds_Arc.stroke_weight/20.0 : 0));
+          dashLine.strokeColor = dial.backgroundColor;
+          dashLine.drawLine();
+        }
+      }
+    }
     dial.backgroundColor = -1;
     dial.drawCircle();  //Make the dial anyways
+    if (level >= 3) {  //Make the number followers
+      seconds_Arc.stroke_weight = minutes_Arc.stroke_weight = hours_Arc.stroke_weight = seconds_Arc.stroke_weight / 10;
+
+      seconds_Arc.drawArc();
+      minutes_Arc.drawArc();
+      hours_Arc.drawArc();
+    }
   }
 
   //Analog segment : Traditional analog clock

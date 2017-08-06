@@ -11,6 +11,10 @@ class CGPoint {
   float y;
   CGPoint() {
   }
+  CGPoint(CGPoint reference, float len,float angle) {  //angle w.r.t vertical (clockwise)
+    x = reference.x + len * sin(angle);
+    y = reference.y - len * cos(angle);
+  }
   CGPoint(float x, float y) {
     this.x = x;
     this.y = y;
